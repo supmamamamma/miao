@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemini Image Generator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .input-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+        input[type="text"], textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        textarea {
+            height: 100px;
+            resize: vertical;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            width: 100%;
+            margin-top: 10px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 2s linear infinite;
+            margin: 0 auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .result {
+            margin-top: 30px;
+            padding: 20px;
+            background-color: #f9f9f9;
+            border-radius: 5px;
+            display: none;
+        }
+        .result h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        .text-content {
+            margin-bottom: 20px;
+            line-height: 1.6;
+        }
+        .image-container {
+            text-align: center;
+            margin-top: 20px;
+        }
+        .generated-image {
+            max-width: 100%;
+            height: auto;
+            border-radius: 5px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+        .error {
+            color: #d32f2f;
+            background-color: #ffebee;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 20px;
+            display: none;
+        }
+        .file-upload {
+            border: 2px dashed #ddd;
+            border-radius: 5px;
+            padding: 20px;
+            text-align: center;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: border-color 0.3s;
+        }
+        .file-upload:hover {
+            border-color: #4CAF50;
+        }
+        .file-upload.dragover {
+            border-color: #4CAF50;
+            background-color: #f0f8f0;
+        }
+        .uploaded-images {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .uploaded-image {
+            position: relative;
+            width: 100px;
+            height: 100px;
+        }
+        .uploaded-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 5px;
+            border: 2px solid #ddd;
+        }
+        .remove-image {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background: #ff4444;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .remove-image:hover {
+            background: #cc0000;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎨 Gemini Image Generator</h1>
+        
+        <div class="input-group">
+            <label for="vertexKey">Vertex Express Key:</label>
+            <input type="text" id="vertexKey" placeholder="Enter your Vertex Express key">
+        </div>
+        
+        <div class="input-group">
+            <label for="imageUpload">Upload Images (optional):</label>
+            <div class="file-upload" id="fileUpload" onclick="document.getElementById('imageUpload').click()">
+                <p>Click here or drag and drop images to upload</p>
+                <p style="font-size: 12px; color: #666;">Supports: JPG, PNG, GIF, WebP</p>
+            </div>
+            <input type="file" id="imageUpload" multiple accept="image/*" style="display: none;">
+            <div class="uploaded-images" id="uploadedImages"></div>
+        </div>
+        
+        <div class="input-group">
+            <label for="prompt">Text Prompt:</label>
+            <textarea id="prompt" placeholder="Describe what you want to do with the images or generate..."></textarea>
+        </div>
+        
+        <button onclick="generateImage()">Generate Image</button>
+        
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Generating image...</p>
+        </div>
+        
+        <div class="error" id="error"></div>
+        
+        <div class="result" id="result">
+            <h3>Generated Content:</h3>
+            <div class="text-content" id="textContent"></div>
+            <div class="image-container" id="imageContainer"></div>
+        </div>
+    </div>
+
+    <script>
+        // Simple fallback for GIF creation if the library fails to load
+        let GIF_LIBRARY_LOADED = false;
+        
+        // Try to load gif.js library
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js';
+        script.onload = function() {
+            GIF_LIBRARY_LOADED = true;
+        };
+        script.onerror = function() {
+            console.warn('GIF library failed to load, will show images individually');
+        };
+        document.head.appendChild(script);
+        
+        // Global variable to store uploaded images
+        let uploadedImages = [];
+        
+        // File upload handling
+        document.getElementById('imageUpload').addEventListener('change', handleFileSelect);
+        
+        const fileUpload = document.getElementById('fileUpload');
+        fileUpload.addEventListener('dragover', handleDragOver);
+        fileUpload.addEventListener('drop', handleDrop);
+        fileUpload.addEventListener('dragleave', handleDragLeave);
+        
+        function handleFileSelect(event) {
+            const files = Array.from(event.target.files);
+            processFiles(files);
+        }
+        
+        function handleDragOver(event) {
+            event.preventDefault();
+            fileUpload.classList.add('dragover');
+        }
+        
+        function handleDrop(event) {
+            event.preventDefault();
+            fileUpload.classList.remove('dragover');
+            const files = Array.from(event.dataTransfer.files);
+            processFiles(files);
+        }
+        
+        function handleDragLeave(event) {
+            event.preventDefault();
+            fileUpload.classList.remove('dragover');
+        }
+        
+        function processFiles(files) {
+            files.forEach(file => {
+                if (file.type.startsWith('image/')) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        const imageData = {
+                            name: file.name,
+                            data: e.target.result.split(',')[1], // Remove data:image/...;base64, prefix
+                            mimeType: file.type
+                        };
+                        uploadedImages.push(imageData);
+                        displayUploadedImage(imageData, uploadedImages.length - 1);
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
+        }
+        
+        function displayUploadedImage(imageData, index) {
+            const container = document.getElementById('uploadedImages');
+            const imageDiv = document.createElement('div');
+            imageDiv.className = 'uploaded-image';
+            imageDiv.innerHTML = `
+                <img src="data:${imageData.mimeType};base64,${imageData.data}" alt="${imageData.name}">
+                <button class="remove-image" onclick="removeImage(${index})">×</button>
+            `;
+            container.appendChild(imageDiv);
+        }
+        
+        function removeImage(index) {
+            uploadedImages.splice(index, 1);
+            refreshUploadedImages();
+        }
+        
+        function refreshUploadedImages() {
+            const container = document.getElementById('uploadedImages');
+            container.innerHTML = '';
+            uploadedImages.forEach((imageData, index) => {
+                displayUploadedImage(imageData, index);
+            });
+        }
+        
+        async function generateImage() {
+            const vertexKey = document.getElementById('vertexKey').value.trim();
+            const prompt = document.getElementById('prompt').value.trim();
+            
+            if (!vertexKey) {
+                showError('Please enter your Vertex Express key');
+                return;
+            }
+            
+            // Check if we have either a prompt or uploaded images
+            if (!prompt && uploadedImages.length === 0) {
+                showError('Please enter a prompt or upload at least one image');
+                return;
+            }
+            
+            // Show loading state
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('result').style.display = 'none';
+            document.getElementById('error').style.display = 'none';
+            document.querySelector('button').disabled = true;
+            
+            try {
+                // Build the parts array with text and images
+                const parts = [];
+                
+                // Add text prompt
+                if (prompt) {
+                    parts.push({
+                        text: prompt
+                    });
+                }
+                
+                // Add uploaded images
+                uploadedImages.forEach(imageData => {
+                    parts.push({
+                        inlineData: {
+                            mimeType: imageData.mimeType,
+                            data: imageData.data
+                        }
+                    });
+                });
+                
+                // Ensure we have at least some content
+                if (parts.length === 0) {
+                    showError('Please enter a prompt or upload at least one image');
+                    return;
+                }
+                
+                const response = await fetch('/frontend/v1beta/models/gemini-2.5-flash-image-preview:generateContent', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-vertex-express-key': vertexKey
+                    },
+                    body: JSON.stringify({
+                        contents: [{
+                            role: "user",
+                            parts: parts
+                        }]
+                    })
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${errorData}`);
+                }
+                
+                const data = await response.json();
+                displayResult(data);
+                
+            } catch (error) {
+                console.error('Error:', error);
+                showError('Error generating image: ' + error.message);
+            } finally {
+                // Hide loading state
+                document.getElementById('loading').style.display = 'none';
+                document.querySelector('button').disabled = false;
+            }
+        }
+        
+        function displayResult(data) {
+            const resultDiv = document.getElementById('result');
+            const textContentDiv = document.getElementById('textContent');
+            const imageContainerDiv = document.getElementById('imageContainer');
+            
+            // Clear previous results
+            textContentDiv.innerHTML = '';
+            imageContainerDiv.innerHTML = '';
+            
+            if (data.candidates && data.candidates.length > 0) {
+                const candidate = data.candidates[0];
+                const parts = candidate.content.parts;
+                
+                let textParts = [];
+                let imageParts = [];
+                
+                // Separate text and image parts
+                parts.forEach(part => {
+                    if (part.text) {
+                        textParts.push(part.text);
+                    } else if (part.inlineData && part.inlineData.data) {
+                        imageParts.push(part.inlineData.data);
+                    }
+                });
+                
+                // Display text content
+                if (textParts.length > 0) {
+                    textContentDiv.innerHTML = textParts.join('');
+                }
+                
+                // Handle images
+                if (imageParts.length === 1) {
+                    // Single image - display as is
+                    const img = document.createElement('img');
+                    img.src = `data:image/png;base64,${imageParts[0]}`;
+                    img.className = 'generated-image';
+                    img.alt = 'Generated image';
+                    imageContainerDiv.appendChild(img);
+                } else if (imageParts.length > 1) {
+                    // Multiple images - try to create animated GIF or show individually
+                    if (GIF_LIBRARY_LOADED && typeof GIF !== 'undefined') {
+                        createAnimatedGif(imageParts, imageContainerDiv);
+                    } else {
+                        // Fallback: show all images individually
+                        showMultipleImages(imageParts, imageContainerDiv);
+                    }
+                }
+                
+                resultDiv.style.display = 'block';
+            } else {
+                showError('No content generated');
+            }
+        }
+        
+        function createAnimatedGif(imageDataArray, container) {
+            console.log('Starting GIF creation with', imageDataArray.length, 'images');
+            
+            try {
+                // Check if GIF library is available
+                if (typeof GIF === 'undefined') {
+                    console.error('GIF library not available');
+                    showMultipleImages(imageDataArray, container);
+                    return;
+                }
+                
+                console.log('GIF library available, loading first image to get dimensions');
+                
+                // Load first image to get dimensions
+                const firstImg = new Image();
+                firstImg.onload = function() {
+                    const gifWidth = firstImg.naturalWidth;
+                    const gifHeight = firstImg.naturalHeight;
+                    
+                    console.log('Using dimensions from first image:', gifWidth + 'x' + gifHeight);
+                    
+                    const gif = new GIF({
+                        workers: 2,
+                        quality: 10,
+                        width: gifWidth,
+                        height: gifHeight,
+                        workerScript: './gif.worker.js'
+                    });
+                    
+                    let loadedImages = 0;
+                    const totalImages = imageDataArray.length;
+                    
+                    // Show loading message for GIF creation
+                    container.innerHTML = '<p>Creating animated GIF... (0/' + totalImages + ' images loaded)</p>';
+                    
+                    // Set a timeout to prevent infinite waiting
+                    const timeout = setTimeout(() => {
+                        console.error('GIF creation timeout after 30 seconds');
+                        showMultipleImages(imageDataArray, container);
+                    }, 30000);
+                    
+                    console.log('Processing', totalImages, 'images for GIF');
+                    
+                    // Define startGifRender function with access to gif variable
+                    function startGifRender() {
+                        console.log('Starting GIF render process');
+                        container.innerHTML = '<p>Rendering animated GIF...</p>';
+                        
+                        gif.on('start', function() {
+                            console.log('GIF rendering started');
+                        });
+                        
+                        gif.on('progress', function(p) {
+                            console.log('GIF rendering progress:', Math.round(p * 100) + '%');
+                            container.innerHTML = '<p>Rendering animated GIF... ' + Math.round(p * 100) + '%</p>';
+                        });
+                        
+                        gif.on('finished', function(blob) {
+                            console.log('GIF rendering finished, blob size:', blob.size, 'bytes');
+                            try {
+                                const url = URL.createObjectURL(blob);
+                                const gifImg = document.createElement('img');
+                                gifImg.src = url;
+                                gifImg.className = 'generated-image';
+                                gifImg.alt = 'Generated animated GIF';
+                                
+                                container.innerHTML = '';
+                                container.appendChild(gifImg);
+                                console.log('GIF successfully displayed');
+                            } catch (displayError) {
+                                console.error('Error displaying GIF:', displayError);
+                                showMultipleImages(imageDataArray, container);
+                            }
+                        });
+                        
+                        gif.on('abort', function() {
+                            console.error('GIF rendering was aborted');
+                            showMultipleImages(imageDataArray, container);
+                        });
+                        
+                        // Set another timeout for the rendering process
+                        const renderTimeout = setTimeout(() => {
+                            console.error('GIF rendering timeout after 60 seconds');
+                            gif.abort();
+                            showMultipleImages(imageDataArray, container);
+                        }, 60000);
+                        
+                        gif.on('finished', function() {
+                            clearTimeout(renderTimeout);
+                        });
+                        
+                        gif.on('abort', function() {
+                            clearTimeout(renderTimeout);
+                        });
+                        
+                        gif.render();
+                    }
+                    
+                    imageDataArray.forEach((imageData, index) => {
+                        console.log('Loading image', index + 1, 'of', totalImages);
+                        const img = new Image();
+                        
+                        img.onerror = function() {
+                            console.error('Failed to load image', index + 1);
+                            loadedImages++;
+                            container.innerHTML = '<p>Creating animated GIF... (' + loadedImages + '/' + totalImages + ' images loaded)</p>';
+                            
+                            if (loadedImages === totalImages) {
+                                clearTimeout(timeout);
+                                console.log('All images processed (some failed), starting GIF render');
+                                startGifRender();
+                            }
+                        };
+                        
+                        img.onload = function() {
+                            console.log('Image', index + 1, 'loaded successfully, size:', img.width, 'x', img.height);
+                            
+                            try {
+                                // Create a canvas with the actual dimensions
+                                const canvas = document.createElement('canvas');
+                                const ctx = canvas.getContext('2d');
+                                canvas.width = gifWidth;
+                                canvas.height = gifHeight;
+                                
+                                // Draw image scaled to match first image dimensions
+                                ctx.drawImage(img, 0, 0, gifWidth, gifHeight);
+                                console.log('Image', index + 1, 'drawn to canvas at', gifWidth + 'x' + gifHeight);
+                                
+                                // Add frame to GIF with 200ms delay (faster playback)
+                                gif.addFrame(canvas, {delay: 200});
+                                console.log('Frame', index + 1, 'added to GIF');
+                                
+                                loadedImages++;
+                                container.innerHTML = '<p>Creating animated GIF... (' + loadedImages + '/' + totalImages + ' images loaded)</p>';
+                                
+                                if (loadedImages === totalImages) {
+                                    clearTimeout(timeout);
+                                    console.log('All images loaded, starting GIF render');
+                                    startGifRender();
+                                }
+                            } catch (canvasError) {
+                                console.error('Error processing image', index + 1, ':', canvasError);
+                                loadedImages++;
+                                if (loadedImages === totalImages) {
+                                    clearTimeout(timeout);
+                                    startGifRender();
+                                }
+                            }
+                        };
+                        
+                        img.src = `data:image/png;base64,${imageData}`;
+                    });
+                };
+                
+                firstImg.onerror = function() {
+                    console.error('Failed to load first image to determine dimensions, using fallback');
+                    showMultipleImages(imageDataArray, container);
+                };
+                
+                firstImg.src = `data:image/png;base64,${imageDataArray[0]}`;
+                
+                
+            } catch (error) {
+                console.error('Error creating GIF:', error);
+                // Fallback to showing individual images
+                showMultipleImages(imageDataArray, container);
+            }
+        }
+        
+        function showMultipleImages(imageDataArray, container) {
+            container.innerHTML = '<p>Multiple images generated:</p>';
+            
+            imageDataArray.forEach((imageData, index) => {
+                const img = document.createElement('img');
+                img.src = `data:image/png;base64,${imageData}`;
+                img.className = 'generated-image';
+                img.alt = `Generated image ${index + 1}`;
+                img.style.marginBottom = '10px';
+                img.style.display = 'block';
+                container.appendChild(img);
+            });
+        }
+        
+        function showError(message) {
+            const errorDiv = document.getElementById('error');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+        }
+        
+        // Allow Enter key to submit
+        document.getElementById('prompt').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && e.ctrlKey) {
+                generateImage();
+            }
+        });
+    </script>
+</body>
+</html>
