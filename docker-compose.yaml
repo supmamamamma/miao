@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+  miao-app:
+    image: ghcr.io/supmamamamma/miao:latest # 直接使用您在 ghcr.io 上的镜像
+    container_name: miao_app_instance
+    ports:
+      - "7860:7860"
+    restart: unless-stopped
+    environment:
+      VERTEX_EXPRESS_KEYS: "your_vertex_express_keys_here" # 请替换为您的真实密钥
+      PROXY_API_KEY: "your_proxy_api_key_here"           # 请替换为您的真实密钥
